@@ -5,9 +5,7 @@ from dotenv import load_dotenv
 import json
 import discord
 from discord.ext import commands, tasks
-from discord import Interaction
-
-UTC8 = timezone('Asia/Singapore')
+from discord import Interaction, ui
 
 # IMPORTANT: API SECURITY KEY
 load_dotenv()
@@ -15,6 +13,7 @@ TOKEN = os.getenv('TOKEN')
 BOT_CREATOR_ID = int(os.getenv('BOT_CREATOR_ID'))
 PREFIX = os.getenv('PREFIX')
 MOD_MAIL_SETTINGS_FILE = 'mod_mail_settings.json'
+EMBEDCOLOR = 0xE7E7E7
 
 client = commands.Bot(
     command_prefix=PREFIX, 
@@ -24,10 +23,10 @@ client = commands.Bot(
 
 #load
 def timestamp():
-    return datetime.datetime.now(UTC8).strftime("%m-%d %H:%M")
+    return datetime.datetime.now().strftime("%m-%d %H:%M")
 
 def date():
-    return datetime.datetime.now(UTC8).strftime("%m-%d")
+    return datetime.datetime.now().strftime("%m-%d")
 
 def save_mod_mail_settings():
     with open(MOD_MAIL_SETTINGS_FILE, 'w') as file:
@@ -64,6 +63,66 @@ async def on_ready():
         print(f'Loaded prefix: {PREFIX}')
     else:
         print('No prefix loaded.')
+
+@client.tree.command(
+        name='help',
+        description='list of commands'
+)
+async def about(interaction: Interaction):
+    # Create an Embed instance
+    embed = discord.Embed(
+        title='COMMANDS',
+        description=None,
+        color=discord.Color(EMBEDCOLOR),
+        timestamp=datetime.datetime.now()
+    )
+    embed.add_field(name="SLASH", value=
+"""
+- /about - About the bot
+- /ticket [reason]
+- /announce [channel id][message]
+- /avatar [member]
+- /ban [member]
+- /banid [userID]
+- /unban [userID]
+- /kick [member]
+- /set_mod_mail [set channel name][category name dont include '#'] (ADMIN ONLY)\n
+""", inline=True)
+
+    embed.add_field(name="PREFIX", value=
+f"""
+- {PREFIX}hello
+- {PREFIX}purge [amount]
+- {PREFIX}reset - Reset mod mail settings (ADMIN ONLY)
+""", inline=True)
+    embed.set_image(
+        url='https://media.discordapp.net/attachments/1201196057942560918/1201196300419477656/embed2.gif?ex=65c8f03b&is=65b67b3b&hm=28926823b7c611af5cadad8a2c1a31de4e05d2811ca7746e7f4bbfab62857976&='
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@client.tree.command(
+        name='about',
+        description='About me'
+)
+async def about(interaction: Interaction):
+    embed = discord.Embed(
+        title='Ticket system',
+        description=f'Use slash "/" commands to interact with me!\n or use /help',
+        color=discord.Color(EMBEDCOLOR),
+        timestamp=datetime.datetime.now()
+    )
+    embed.add_field(name='Invite me:', value='[click me :>](https://discord.com/api/oauth2/authorize?client_id=1182663601593520139&permissions=8&scope=applications.commands%20bot "invite link")', inline=True)
+    embed.add_field(name='Source Code:', value='[repository](https://github.com/Samshh/DiscordBot "github repo")', inline=True)
+    embed.add_field(name='Creator:', value='[meiple](https://samshh.netlify.app/ "samshh")', inline=True)
+    embed.set_author(name='About me')
+    embed.set_thumbnail(
+        url='https://images-ext-2.discordapp.net/external/qdBFIQ1Da8L7m9iGDzq8D9cCdqR-hy_eS20yLfRSl6E/%3Fsize%3D1024/https/cdn.discordapp.com/avatars/784897622728638495/a_1723d8537d0a57255ccbdcba04c92bbb.gif'
+        )
+    embed.set_image(
+        url='https://media.discordapp.net/attachments/1201196057942560918/1201196302659227658/embed.gif?ex=65c8f03b&is=65b67b3b&hm=e54f1819f59174cfc6dddf8e3fd5a3634747f11c5cd44945fe95f3c00b0dd6f8&='
+    )
+    embed.set_footer(text='I love Frieren')
+    await interaction.response.send_message(embed=embed)
 
 #reset mod mail
 @client.command()
@@ -153,6 +212,7 @@ async def presence(ctx):
 )
 async def ticket(interaction, reason: str):
     mod_mail_channel_id = mod_mail_settings.get('mod_mail_channel_id')
+    role_handler = mod_mail_settings.get('role_handler')
     if interaction.user.id == interaction.user.id:
         mod_mail_channel = interaction.guild.get_channel(mod_mail_channel_id)
         if mod_mail_channel:
@@ -165,25 +225,26 @@ async def ticket(interaction, reason: str):
                 )
                 return
             new_channel = await interaction.guild.create_text_channel(
-                name=f'{interaction.user.name}-{date()}-ticket',
+                name=f'{interaction.user.name}-{timestamp()}-ticket',
                 category=category
             )
             mod_mail_settings[interaction.user.id] = (new_channel.id, new_channel.name)
             save_mod_mail_settings()
             await set_ticket_channel_permissions(new_channel, interaction.user)
-            welcome_message = (
-                f'`Welcome to your ticket channel,` {interaction.user.mention}\n'
-                f'`Please wait for staff to assist you. If you no longer need help, use {PREFIX}close.`\n'
-                f'`Reason for ticket:` {reason}'
+            role = interaction.guild.get_role(int(role_handler))
+            await new_channel.set_permissions(role, read_messages=True, send_messages=True)
+            embed = discord.Embed(
+                title=f'Welcome to your ticket channel, {interaction.user.name}',
+                description=f'**Please wait for <@&{role_handler}> to assist you.\n If you no longer need help, use {PREFIX}close.**',
+                color=discord.Color(EMBEDCOLOR),
+                timestamp=datetime.datetime.now()
             )
-            await new_channel.send(welcome_message)
-            user_dm_message = (
-                f'`Thanks for using the ticket system! abusing this system will lead to a ban`\n'
+            embed.add_field(name='Reason:', value=f'**{reason}**', inline=True)
+            embed.set_image(
+                url='https://media.discordapp.net/attachments/1201196057942560918/1201196300931174541/embedticket.gif?ex=65c8f03b&is=65b67b3b&hm=60daaf02842967bb5e7c93e543b4d7759c6af5a4f805d675de6c303168f1d316&='
             )
-            await interaction.user.send(user_dm_message)
-            await interaction.response.send_message(
-                f'`Ticket channel created: `{new_channel.name}', ephemeral=True, delete_after=5
-            )
+            await new_channel.send(f'{interaction.user.mention} <@&{role_handler}>' ,embed=embed)
+            await interaction.response.send_message('done!', ephemeral=True, delete_after=5)
         else:
             await interaction.response.send_message("`Mod mail channel not found. Please contact an admin/mod`", ephemeral=True, delete_after=5)
     else:
@@ -200,7 +261,7 @@ async def close(ctx):
         await ctx.channel.set_permissions(ctx.author, overwrite=None)
         user_ticket_info = mod_mail_settings.pop(ctx.author.id, None)
         if user_ticket_info:
-            await ctx.send(f'`Ticket channel closed by` {ctx.author.mention} `Staff will no longer receive messages in this channel.`')
+            await ctx.send(f'Ticket channel closed by {ctx.author.mention}. Staff will no longer receive messages in this channel.')
             save_mod_mail_settings()
             user_dm_message = (
                 f'`Your ticket ({user_ticket_info[1]}) has been closed.`\n'
@@ -208,7 +269,7 @@ async def close(ctx):
             )
             await ctx.author.send(user_dm_message)
         else:
-            await ctx.send(f'`Ticket channel closed by` {ctx.author.mention} `Staff will no longer receive messages in this channel.`')
+            await ctx.send(f'Ticket channel closed by {ctx.author.mention}. Staff will no longer receive messages in this channel.')
             await ctx.channel.delete()
     else:
         return
@@ -367,7 +428,8 @@ async def announce(interaction: Interaction, channel_reference: str, message: st
     description='mod_mail_setup'
 )
 @commands.check(has_admin_permissions)
-async def set_mod_mail(interaction: Interaction, channel_name: str, category_reference: str):
+async def set_mod_mail(interaction: Interaction, channel_name: str, category_reference: str, role_handler: str):
+    role_id = role_handler.strip('<@&>')
     try:
         if category_reference.startswith("<#") and category_reference.endswith(">"):
             category_id = int(category_reference[2:-1])
@@ -382,15 +444,26 @@ async def set_mod_mail(interaction: Interaction, channel_name: str, category_ref
             )
             await new_channel.set_permissions(interaction.guild.default_role, read_messages=True, send_messages=False)
             mod_mail_settings['mod_mail_channel_id'] = new_channel.id
+            mod_mail_settings['role_handler'] = role_id
 
             save_mod_mail_settings()
 
             await interaction.response.send_message(
-                f'`Mod mail category set to {target_category.name}`\n'
-                f'`Mod mail channel created: {new_channel.name}`'
+                f'Mod mail category set to {target_category.name}\n'
+                f'Mod mail channel created: {new_channel.name}\n'
+                f'Role handler set to <@&{role_id}>',
+                ephemeral=True
             )
-            welcome_message = f"`Welcome to {new_channel.name} channel, use /ticket`"
-            await new_channel.send(welcome_message)
+            embed = discord.Embed(
+            title=f"Welcome to {new_channel.name} channel",
+            description="use /ticket [reason] to create a ticket in any text channel",
+            color=discord.Color(EMBEDCOLOR),
+            timestamp=datetime.datetime.now()
+            )
+            embed.set_image(
+                url='https://media.discordapp.net/attachments/1201196057942560918/1201196301765836952/embedticketset.gif?ex=65c8f03b&is=65b67b3b&hm=bf0abdf78648ec1f3c1fecd729d0684ee43091c04d95471bb8eae5b79f3486eb&='
+            )
+            await new_channel.send(embed=embed)
 
         else:
             await interaction.response.send_message(
