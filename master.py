@@ -69,7 +69,6 @@ async def on_ready():
         description='list of commands'
 )
 async def about(interaction: Interaction):
-    # Create an Embed instance
     embed = discord.Embed(
         title='COMMANDS',
         description=None,
