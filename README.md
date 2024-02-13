@@ -4,12 +4,14 @@
 - set the channel
 - set the category <#categoryID>
 - set role handler @roleMention
+
 ![alt text](/assets/image.png)
 ![alt text](/assets/image1.png)
 ## Open a ticket
 ### you can open a ticket in any channel
 ![alt text](/assets/image-2.png)
 - you can mention actors involved in the report
+
 ![alt text](/assets/image-3.png)
 - will ping mods for you
 ### admin level tickets for mod reports
