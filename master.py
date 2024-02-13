@@ -5,7 +5,16 @@ from dotenv import load_dotenv
 import json
 import discord
 from discord.ext import commands, tasks
-from discord import Interaction, ui
+from discord import Interaction
+
+# To do:
+# - add ticket for higher positions like admins /ticket_admin - DONE
+# - add different ticket categories like /ticket_role etc...
+# - add embed for member info lookup
+# - add channel reference for where the /ticket was used
+# - add rename ticket when closed
+# - move ticket to archive category when the ticket is closed
+# - add urgent feature for tickets
 
 # IMPORTANT: API SECURITY KEY
 load_dotenv()
@@ -26,7 +35,7 @@ def timestamp():
     return datetime.datetime.now().strftime("%m-%d %H:%M")
 
 def date():
-    return datetime.datetime.now().strftime("%m-%d")
+    return datetime.datetime.now().strftime("%m-%d-%Y %H:%M")
 
 def save_mod_mail_settings():
     with open(MOD_MAIL_SETTINGS_FILE, 'w') as file:
@@ -224,7 +233,7 @@ async def ticket(interaction, reason: str):
                 )
                 return
             new_channel = await interaction.guild.create_text_channel(
-                name=f'{interaction.user.name}-{timestamp()}-ticket',
+                name=f'{interaction.user.name}-{date()}-ticket',
                 category=category
             )
             mod_mail_settings[interaction.user.id] = (new_channel.id, new_channel.name)
@@ -243,6 +252,47 @@ async def ticket(interaction, reason: str):
                 url='https://media.discordapp.net/attachments/1201196057942560918/1201196300931174541/embedticket.gif?ex=65c8f03b&is=65b67b3b&hm=60daaf02842967bb5e7c93e543b4d7759c6af5a4f805d675de6c303168f1d316&='
             )
             await new_channel.send(f'{interaction.user.mention} <@&{role_handler}>' ,embed=embed)
+            await interaction.response.send_message('done!', ephemeral=True, delete_after=5)
+        else:
+            await interaction.response.send_message("`Mod mail channel not found. Please contact an admin/mod`", ephemeral=True, delete_after=5)
+    else:
+        return
+    
+@client.tree.command(
+    name='ticket_admin', 
+    description='Create a ticket channel'
+)
+async def ticket(interaction, reason: str):
+    mod_mail_channel_id = mod_mail_settings.get('mod_mail_channel_id')
+    if interaction.user.id == interaction.user.id:
+        mod_mail_channel = interaction.guild.get_channel(mod_mail_channel_id)
+        if mod_mail_channel:
+            category = mod_mail_channel.category
+            existing_ticket = mod_mail_settings.get(interaction.user.id)
+            if existing_ticket:
+                existing_channel = interaction.guild.get_channel(existing_ticket[0])
+                await interaction.response.send_message(
+                    f'`You already have an open ticket: {existing_channel.name}`', ephemeral=True, delete_after=5
+                )
+                return
+            new_channel = await interaction.guild.create_text_channel(
+                name=f'admin-{interaction.user.name}-ticket',
+                category=category
+            )
+            mod_mail_settings[interaction.user.id] = (new_channel.id, new_channel.name)
+            save_mod_mail_settings()
+            await set_ticket_channel_permissions(new_channel, interaction.user)
+            embed = discord.Embed(
+                title=f'Welcome to your ticket channel, {interaction.user.name}',
+                description=f'**Please wait for admin to assist you.\n If you no longer need help, use {PREFIX}close.**',
+                color=discord.Color(EMBEDCOLOR),
+                timestamp=datetime.datetime.now()
+            )
+            embed.add_field(name='Reason:', value=f'**{reason}**', inline=True)
+            embed.set_image(
+                url='https://media.discordapp.net/attachments/1201196057942560918/1201196300931174541/embedticket.gif?ex=65c8f03b&is=65b67b3b&hm=60daaf02842967bb5e7c93e543b4d7759c6af5a4f805d675de6c303168f1d316&='
+            )
+            await new_channel.send(f'{interaction.user.mention}' ,embed=embed)
             await interaction.response.send_message('done!', ephemeral=True, delete_after=5)
         else:
             await interaction.response.send_message("`Mod mail channel not found. Please contact an admin/mod`", ephemeral=True, delete_after=5)
